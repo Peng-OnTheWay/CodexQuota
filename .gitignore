@@ -1,0 +1,18 @@
+bin/
+obj/
+.vs/
+*.user
+*.suo
+TestResults/
+publish/
+
+# Root publish output (convenience copy)
+/CodexQuota.exe
+/D3DCompiler_47_cor3.dll
+/PenImc_cor3.dll
+/PresentationNative_cor3.dll
+/vcruntime140_cor3.dll
+/wpfgfx_cor3.dll
+
+# Prebuilt app (too large for Git, use GitHub Releases)
+/app/

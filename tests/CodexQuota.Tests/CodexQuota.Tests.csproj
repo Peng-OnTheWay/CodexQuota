@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\src\CodexQuota\Models\QuotaSnapshot.cs" Link="Models\QuotaSnapshot.cs" />
+    <Compile Include="..\..\src\CodexQuota\Services\CodexQuotaParser.cs" Link="Services\CodexQuotaParser.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="TestData\*.jsonl" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>
