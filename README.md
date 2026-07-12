@@ -20,11 +20,9 @@
 
 ## 快速上手
 
-### 方式一：直接运行（无需安装任何工具）
+### 方式一：下载预构建版本
 
-clone 本仓库后，双击 `app\CodexQuota.exe` 即可启动。无需安装 .NET 运行时。
-
-> 程序打包了完整的 .NET 8 运行时，仅支持 **Windows x64**。
+前往 [Releases](https://github.com/Peng-OnTheWay/CodexQuota/releases) 下载最新的 `CodexQuota.exe`，双击即可运行。无需安装 .NET 运行时。
 
 ### 方式二：从源码构建
 
@@ -109,7 +107,6 @@ dotnet publish .\src\CodexQuota\CodexQuota.csproj -c Release -r win-x64 --self-c
 CodexQuota.sln
 src/CodexQuota/               WPF 悬浮窗程序
 tests/CodexQuota.Tests/       解析器 smoke tests
-app/                          可执行文件（直接双击运行）
 ```
 
 ## 安全审计要点
