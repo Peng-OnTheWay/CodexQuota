@@ -59,10 +59,11 @@
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock x:Name="StatusTextBlock"
                                Text="●"
-                               Foreground="#86EFAC"
+                               Foreground="#EF4444"
                                FontSize="12"
                                Margin="0,0,5,0" />
-                    <TextBlock Text="本地日志"
+                    <TextBlock x:Name="ChatGptStatusTextBlock"
+                               Text="ChatGPT 离线"
                                Foreground="#94A3B8"
                                FontSize="11" />
                 </StackPanel>

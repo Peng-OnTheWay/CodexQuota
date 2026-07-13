@@ -15,13 +15,16 @@ public partial class MainWindow : Window
     private readonly SettingsService _settingsService = new();
     private readonly StartupService _startupService = new();
     private readonly CodexQuotaService _quotaService;
+    private readonly ChatGptProcessService _chatGptProcessService = new();
     private readonly DispatcherTimer _refreshTimer = new();
     private readonly DispatcherTimer _fileChangeDebounceTimer = new();
+    private readonly DispatcherTimer _chatGptStatusTimer = new();
     private readonly TrayIconService _trayIconService = new();
 
     private FileSystemWatcher? _watcher;
     private AppSettings _settings;
     private QuotaSnapshot? _currentSnapshot;
+    private bool? _lastChatGptRunning;
     private bool _isExiting;
 
     public MainWindow()
@@ -42,6 +45,7 @@ public partial class MainWindow : Window
         base.OnSourceInitialized(e);
         try
         {
+            await PollChatGptStatusAsync(refreshWhenStarted: false);
             await RefreshNowAsync();
         }
         catch
@@ -98,6 +102,10 @@ public partial class MainWindow : Window
             _fileChangeDebounceTimer.Stop();
             await RefreshNowAsync();
         };
+
+        _chatGptStatusTimer.Interval = TimeSpan.FromSeconds(5);
+        _chatGptStatusTimer.Tick += async (_, _) => await PollChatGptStatusAsync(refreshWhenStarted: true);
+        _chatGptStatusTimer.Start();
     }
 
     private void ConfigureTrayIcon()
@@ -170,13 +178,31 @@ public partial class MainWindow : Window
         }
     }
 
+    private async Task PollChatGptStatusAsync(bool refreshWhenStarted)
+    {
+        var isRunning = _chatGptProcessService.IsRunning();
+        var justStarted = _lastChatGptRunning == false && isRunning;
+
+        _lastChatGptRunning = isRunning;
+        RenderChatGptStatus(isRunning);
+
+        if (refreshWhenStarted && justStarted)
+        {
+            await RefreshNowAsync();
+        }
+    }
+
+    private void RenderChatGptStatus(bool isRunning)
+    {
+        StatusTextBlock.Foreground = isRunning
+            ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(34, 197, 94))
+            : new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(239, 68, 68));
+        ChatGptStatusTextBlock.Text = isRunning ? "ChatGPT 在线" : "ChatGPT 离线";
+    }
+
     private void RenderSnapshot(QuotaSnapshot snapshot, string? sourceFile)
     {
         var weeklyObservedAt = snapshot.WeeklyObservedAt ?? snapshot.ObservedAt;
-        var isStale = TimeFormatter.IsStale(weeklyObservedAt, TimeSpan.FromHours(12));
-        StatusTextBlock.Foreground = isStale
-            ? PercentageHelper.BrushForRemaining(40)
-            : PercentageHelper.BrushForRemaining(90);
 
         RenderWeeklyQuota(
             snapshot.WeeklyRemainingPercent,
@@ -186,7 +212,8 @@ public partial class MainWindow : Window
         ObservedTextBlock.Text = weeklyObservedAt.HasValue
             ? $"{TimeFormatter.FormatCompactLogTime(weeklyObservedAt)}更新"
             : "未绑定";
-        _trayIconService.UpdateTooltip($"CodexQuota - 本周 {FormatQuotaForTooltip(snapshot.WeeklyRemainingPercent, snapshot.WeeklyResetAt)}");
+        var chatGptStatus = _lastChatGptRunning == true ? "ChatGPT 在线" : "ChatGPT 离线";
+        _trayIconService.UpdateTooltip($"CodexQuota - {chatGptStatus} / 本周 {FormatQuotaForTooltip(snapshot.WeeklyRemainingPercent, snapshot.WeeklyResetAt)}");
     }
 
     private void RenderWeeklyQuota(
@@ -248,7 +275,6 @@ public partial class MainWindow : Window
 
     private void RenderEmptyState(string message)
     {
-        StatusTextBlock.Foreground = PercentageHelper.BrushForRemaining(null);
         WeeklyPercentTextBlock.Text = "--";
         WeeklyPercentTextBlock.Foreground = PercentageHelper.BrushForRemaining(null);
         WeeklyPercentPill.Background = System.Windows.Media.Brushes.Transparent;
@@ -256,7 +282,8 @@ public partial class MainWindow : Window
         WeeklyProgressBar.Foreground = PercentageHelper.BrushForRemaining(null);
         WeeklyResetTextBlock.Text = message;
         ObservedTextBlock.Text = "未绑定";
-        _trayIconService.UpdateTooltip("CodexQuota - 等待周额度记录");
+        var chatGptStatus = _lastChatGptRunning == true ? "ChatGPT 在线" : "ChatGPT 离线";
+        _trayIconService.UpdateTooltip($"CodexQuota - {chatGptStatus} / 等待周额度记录");
     }
 
     private void ToggleVisibility()
@@ -348,7 +375,7 @@ public partial class MainWindow : Window
     private void AboutMenuItem_Click(object sender, RoutedEventArgs e)
     {
         System.Windows.MessageBox.Show(
-            "CodexQuota\n\n纯本地读取 Codex sessions 中的 token_count.rate_limits。\n当前界面只显示 Codex 写入的真实本周额度。\n不读取 auth.json，不联网，不上传日志。",
+            "CodexQuota\n\n纯本地读取 Codex sessions 中的 token_count.rate_limits。\n当前界面只显示 Codex 写入的真实本周额度。\n右上角红绿点表示本机 ChatGPT 桌面程序是否正在运行。\n不读取 auth.json，不联网，不上传日志。",
             "关于 CodexQuota",
             System.Windows.MessageBoxButton.OK,
             System.Windows.MessageBoxImage.Information);
