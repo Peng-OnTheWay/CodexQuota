@@ -9,6 +9,8 @@ public sealed class QuotaSnapshot
     public DateTimeOffset? WeeklyResetAt { get; set; }
 
     public DateTimeOffset? ObservedAt { get; set; }
+    public DateTimeOffset? FiveHourObservedAt { get; set; }
+    public DateTimeOffset? WeeklyObservedAt { get; set; }
 
     public double? FiveHourRemainingPercent => RemainingFromUsed(FiveHourUsedPercent);
     public double? WeeklyRemainingPercent => RemainingFromUsed(WeeklyUsedPercent);
@@ -18,6 +20,16 @@ public sealed class QuotaSnapshot
         WeeklyUsedPercent.HasValue ||
         FiveHourResetAt.HasValue ||
         WeeklyResetAt.HasValue;
+
+    public bool HasFiveHourQuota =>
+        FiveHourUsedPercent.HasValue ||
+        FiveHourResetAt.HasValue;
+
+    public bool HasWeeklyQuota =>
+        WeeklyUsedPercent.HasValue ||
+        WeeklyResetAt.HasValue;
+
+    public bool HasBothQuotaWindows => HasFiveHourQuota && HasWeeklyQuota;
 
     private static double? RemainingFromUsed(double? usedPercent)
     {

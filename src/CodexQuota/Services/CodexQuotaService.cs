@@ -32,6 +32,9 @@ public sealed class CodexQuotaService
             return QuotaReadResult.NoJsonlFiles(_locator.SessionsPath);
         }
 
+        var merged = new QuotaSnapshot();
+        string? firstSourceFile = null;
+
         foreach (var file in recentFiles)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -59,10 +62,51 @@ public sealed class CodexQuotaService
             var snapshot = _parser.TryParseLatestSnapshot(lines);
             if (snapshot?.HasAnyQuota == true)
             {
-                return QuotaReadResult.Success(snapshot, file.FullName);
+                firstSourceFile ??= file.FullName;
+                MergeMissingQuotaWindows(merged, snapshot);
+                if (merged.HasWeeklyQuota)
+                {
+                    return QuotaReadResult.Success(merged, firstSourceFile);
+                }
             }
         }
 
-        return QuotaReadResult.NoQuotaFound();
+        return merged.HasAnyQuota && firstSourceFile is not null
+            ? QuotaReadResult.Success(merged, firstSourceFile)
+            : QuotaReadResult.NoQuotaFound();
+    }
+
+    private static void MergeMissingQuotaWindows(QuotaSnapshot target, QuotaSnapshot source)
+    {
+        target.ObservedAt = NewerOf(target.ObservedAt, source.ObservedAt);
+
+        if (!target.HasFiveHourQuota && source.HasFiveHourQuota)
+        {
+            target.FiveHourUsedPercent = source.FiveHourUsedPercent;
+            target.FiveHourResetAt = source.FiveHourResetAt;
+            target.FiveHourObservedAt = source.FiveHourObservedAt ?? source.ObservedAt;
+        }
+
+        if (!target.HasWeeklyQuota && source.HasWeeklyQuota)
+        {
+            target.WeeklyUsedPercent = source.WeeklyUsedPercent;
+            target.WeeklyResetAt = source.WeeklyResetAt;
+            target.WeeklyObservedAt = source.WeeklyObservedAt ?? source.ObservedAt;
+        }
+    }
+
+    private static DateTimeOffset? NewerOf(DateTimeOffset? left, DateTimeOffset? right)
+    {
+        if (!left.HasValue)
+        {
+            return right;
+        }
+
+        if (!right.HasValue)
+        {
+            return left;
+        }
+
+        return left.Value >= right.Value ? left : right;
     }
 }

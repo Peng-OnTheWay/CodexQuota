@@ -11,6 +11,8 @@ public sealed class CodexQuotaParser
     public QuotaSnapshot? TryParseLatestSnapshot(IEnumerable<string> jsonlLines)
     {
         var lines = jsonlLines as IList<string> ?? jsonlLines.ToList();
+        var merged = new QuotaSnapshot();
+
         for (var i = lines.Count - 1; i >= 0; i--)
         {
             var line = lines[i];
@@ -22,11 +24,15 @@ public sealed class CodexQuotaParser
             var snapshot = TryParseLine(line);
             if (snapshot?.HasAnyQuota == true)
             {
-                return snapshot;
+                MergeMissingQuotaWindows(merged, snapshot);
+                if (merged.HasBothQuotaWindows)
+                {
+                    return merged;
+                }
             }
         }
 
-        return null;
+        return merged.HasAnyQuota ? merged : null;
     }
 
     public QuotaSnapshot? TryParseLine(string jsonLine)
@@ -68,11 +74,13 @@ public sealed class CodexQuotaParser
                 {
                     snapshot.FiveHourUsedPercent = usedPercent;
                     snapshot.FiveHourResetAt = resetAt;
+                    snapshot.FiveHourObservedAt = snapshot.ObservedAt;
                 }
                 else if (windowMinutes == WeeklyWindowMinutes)
                 {
                     snapshot.WeeklyUsedPercent = usedPercent;
                     snapshot.WeeklyResetAt = resetAt;
+                    snapshot.WeeklyObservedAt = snapshot.ObservedAt;
                 }
             }
 
@@ -82,6 +90,40 @@ public sealed class CodexQuotaParser
         {
             return null;
         }
+    }
+
+    private static void MergeMissingQuotaWindows(QuotaSnapshot target, QuotaSnapshot source)
+    {
+        target.ObservedAt = NewerOf(target.ObservedAt, source.ObservedAt);
+
+        if (!target.HasFiveHourQuota && source.HasFiveHourQuota)
+        {
+            target.FiveHourUsedPercent = source.FiveHourUsedPercent;
+            target.FiveHourResetAt = source.FiveHourResetAt;
+            target.FiveHourObservedAt = source.FiveHourObservedAt ?? source.ObservedAt;
+        }
+
+        if (!target.HasWeeklyQuota && source.HasWeeklyQuota)
+        {
+            target.WeeklyUsedPercent = source.WeeklyUsedPercent;
+            target.WeeklyResetAt = source.WeeklyResetAt;
+            target.WeeklyObservedAt = source.WeeklyObservedAt ?? source.ObservedAt;
+        }
+    }
+
+    private static DateTimeOffset? NewerOf(DateTimeOffset? left, DateTimeOffset? right)
+    {
+        if (!left.HasValue)
+        {
+            return right;
+        }
+
+        if (!right.HasValue)
+        {
+            return left;
+        }
+
+        return left.Value >= right.Value ? left : right;
     }
 
     private static bool IsTokenCountEvent(JsonElement root, out JsonElement payload)

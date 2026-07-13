@@ -172,72 +172,91 @@ public partial class MainWindow : Window
 
     private void RenderSnapshot(QuotaSnapshot snapshot, string? sourceFile)
     {
-        var isStale = TimeFormatter.IsStale(snapshot.ObservedAt, TimeSpan.FromHours(12));
+        var weeklyObservedAt = snapshot.WeeklyObservedAt ?? snapshot.ObservedAt;
+        var isStale = TimeFormatter.IsStale(weeklyObservedAt, TimeSpan.FromHours(12));
         StatusTextBlock.Foreground = isStale
             ? PercentageHelper.BrushForRemaining(40)
             : PercentageHelper.BrushForRemaining(90);
 
-        RenderQuota(
-            FiveHourPercentTextBlock,
-            FiveHourPercentPill,
-            FiveHourResetTextBlock,
-            snapshot.FiveHourRemainingPercent,
-            snapshot.FiveHourResetAt,
-            TimeFormatter.FormatFiveHourReset(snapshot.FiveHourResetAt));
-
-        RenderQuota(
-            WeeklyPercentTextBlock,
-            WeeklyPercentPill,
-            WeeklyResetTextBlock,
+        RenderWeeklyQuota(
             snapshot.WeeklyRemainingPercent,
             snapshot.WeeklyResetAt,
             TimeFormatter.FormatWeeklyReset(snapshot.WeeklyResetAt));
 
-        ObservedTextBlock.Text = TimeFormatter.FormatObservedAge(snapshot.ObservedAt);
-        _trayIconService.UpdateTooltip($"CodexQuota - 5小时 {PercentageHelper.FormatRemaining(snapshot.FiveHourRemainingPercent)} / 本周 {PercentageHelper.FormatRemaining(snapshot.WeeklyRemainingPercent)}");
+        ObservedTextBlock.Text = weeklyObservedAt.HasValue
+            ? $"{TimeFormatter.FormatCompactLogTime(weeklyObservedAt)}更新"
+            : "未绑定";
+        _trayIconService.UpdateTooltip($"CodexQuota - 本周 {FormatQuotaForTooltip(snapshot.WeeklyRemainingPercent, snapshot.WeeklyResetAt)}");
     }
 
-    private static void RenderQuota(
-        System.Windows.Controls.TextBlock percentTextBlock,
-        System.Windows.Controls.Border percentPill,
-        System.Windows.Controls.TextBlock resetTextBlock,
+    private void RenderWeeklyQuota(
         double? remainingPercent,
         DateTimeOffset? resetAt,
         string resetText)
     {
-        percentTextBlock.Text = PercentageHelper.FormatRemaining(remainingPercent);
-        percentTextBlock.Foreground = PercentageHelper.BrushForRemaining(remainingPercent);
-        percentPill.Background = PercentageHelper.PillBackgroundForRemaining(remainingPercent);
+        if (!remainingPercent.HasValue && !resetAt.HasValue)
+        {
+            WeeklyPercentTextBlock.Text = "--";
+            WeeklyPercentTextBlock.Foreground = PercentageHelper.BrushForRemaining(null);
+            WeeklyPercentPill.Background = PercentageHelper.PillBackgroundForRemaining(null);
+            WeeklyProgressBar.Value = 0;
+            WeeklyProgressBar.Foreground = PercentageHelper.BrushForRemaining(null);
+            WeeklyResetTextBlock.Text = "等待 Codex 写入周额度";
+            return;
+        }
 
         if (!resetAt.HasValue)
         {
-            resetTextBlock.Text = "截止时间未知";
+            WeeklyPercentTextBlock.Text = PercentageHelper.FormatRemaining(remainingPercent);
+            WeeklyPercentTextBlock.Foreground = PercentageHelper.BrushForRemaining(remainingPercent);
+            WeeklyPercentPill.Background = PercentageHelper.PillBackgroundForRemaining(remainingPercent);
+            WeeklyProgressBar.Value = PercentageHelper.ProgressValue(remainingPercent);
+            WeeklyProgressBar.Foreground = PercentageHelper.BrushForRemaining(remainingPercent);
+            WeeklyResetTextBlock.Text = "截止时间未知";
             return;
         }
 
         var localReset = resetAt.Value.ToLocalTime();
         if (localReset <= DateTimeOffset.Now)
         {
-            resetTextBlock.Text = $"{resetText}（待刷新）";
+            WeeklyPercentTextBlock.Text = "待确认";
+            WeeklyPercentTextBlock.Foreground = PercentageHelper.BrushForRemaining(null);
+            WeeklyPercentPill.Background = PercentageHelper.PillBackgroundForRemaining(null);
+            WeeklyProgressBar.Value = 0;
+            WeeklyProgressBar.Foreground = PercentageHelper.BrushForRemaining(null);
+            WeeklyResetTextBlock.Text = $"{resetText}（待 Codex 确认）";
             return;
         }
 
-        resetTextBlock.Text = resetText;
+        WeeklyPercentTextBlock.Text = PercentageHelper.FormatRemaining(remainingPercent);
+        WeeklyPercentTextBlock.Foreground = PercentageHelper.BrushForRemaining(remainingPercent);
+        WeeklyPercentPill.Background = PercentageHelper.PillBackgroundForRemaining(remainingPercent);
+        WeeklyProgressBar.Value = PercentageHelper.ProgressValue(remainingPercent);
+        WeeklyProgressBar.Foreground = PercentageHelper.BrushForRemaining(remainingPercent);
+        WeeklyResetTextBlock.Text = resetText;
+    }
+
+    private static string FormatQuotaForTooltip(double? remainingPercent, DateTimeOffset? resetAt)
+    {
+        if (resetAt.HasValue && resetAt.Value.ToLocalTime() <= DateTimeOffset.Now)
+        {
+            return "待确认";
+        }
+
+        return PercentageHelper.FormatRemaining(remainingPercent);
     }
 
     private void RenderEmptyState(string message)
     {
         StatusTextBlock.Foreground = PercentageHelper.BrushForRemaining(null);
-        FiveHourPercentTextBlock.Text = "--";
-        FiveHourPercentTextBlock.Foreground = PercentageHelper.BrushForRemaining(null);
-        FiveHourPercentPill.Background = System.Windows.Media.Brushes.Transparent;
-        FiveHourResetTextBlock.Text = message;
         WeeklyPercentTextBlock.Text = "--";
         WeeklyPercentTextBlock.Foreground = PercentageHelper.BrushForRemaining(null);
         WeeklyPercentPill.Background = System.Windows.Media.Brushes.Transparent;
-        WeeklyResetTextBlock.Text = "暂无 Codex 额度";
+        WeeklyProgressBar.Value = 0;
+        WeeklyProgressBar.Foreground = PercentageHelper.BrushForRemaining(null);
+        WeeklyResetTextBlock.Text = message;
         ObservedTextBlock.Text = "未绑定";
-        _trayIconService.UpdateTooltip("CodexQuota - 等待额度记录");
+        _trayIconService.UpdateTooltip("CodexQuota - 等待周额度记录");
     }
 
     private void ToggleVisibility()
@@ -329,7 +348,7 @@ public partial class MainWindow : Window
     private void AboutMenuItem_Click(object sender, RoutedEventArgs e)
     {
         System.Windows.MessageBox.Show(
-            "CodexQuota\n\n纯本地读取 Codex sessions 中的 token_count.rate_limits。\n不读取 auth.json，不联网，不上传日志。",
+            "CodexQuota\n\n纯本地读取 Codex sessions 中的 token_count.rate_limits。\n当前界面只显示 Codex 写入的真实本周额度。\n不读取 auth.json，不联网，不上传日志。",
             "关于 CodexQuota",
             System.Windows.MessageBoxButton.OK,
             System.Windows.MessageBoxImage.Information);

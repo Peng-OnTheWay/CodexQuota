@@ -38,6 +38,13 @@ Run("multi-record.jsonl", snapshot =>
     Assert(snapshot!.FiveHourUsedPercent == 20, "multi-record should use the newest valid token_count line");
 });
 
+Run("split-window-records.jsonl", snapshot =>
+{
+    Assert(snapshot is not null, "split-window-records should parse");
+    Assert(snapshot!.FiveHourUsedPercent == 40, "split-window-records should keep looking backward for latest 5h");
+    Assert(snapshot.WeeklyUsedPercent == 5, "split-window-records should use newest weekly record");
+});
+
 Console.WriteLine("All CodexQuota parser smoke tests passed.");
 
 void Run(string fileName, Action<CodexQuota.Models.QuotaSnapshot?> assertion)

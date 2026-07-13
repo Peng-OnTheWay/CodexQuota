@@ -5,6 +5,7 @@ obj/
 *.suo
 TestResults/
 publish/
+publish-new/
 
 # Root publish output (convenience copy)
 /CodexQuota.exe
